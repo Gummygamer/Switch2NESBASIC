@@ -133,8 +133,11 @@ This is approximate synthesis: sounds entirely between envelope/presentation
 samples can still be lost, oscillator phase is not emulated, and mixing is linear.
 Frame-counter reset delay and IRQ edge races, precise sweep reload timing,
 DMC samples/DMA/IRQs and expansion audio are unsupported. The bundled visual
-diagnostic does not program the APU and remains silent. Cartridge RAM is not saved. Mapper 16 EEPROM/I²C save hardware is not
-implemented; reads expose an idle-high serial bit. Mapper 153/157/159 and
+diagnostic does not program the APU and remains silent. Cartridge RAM is not saved. Legacy mapper 16 now emulates the 128-byte X24C01 serial EEPROM, including
+acknowledgements, LSB-first reads/writes and sequential address wrap. EEPROM
+contents are volatile and start at zero; they are not saved between runs.
+24C02 EEPROM and its different serial protocol are not implemented; legacy
+mapper-16 headers currently select X24C01. Mapper 153/157/159 and
 NES 2.0 submapper selection remain unsupported. Mapper 16 IRQ timing has
 instruction-level granularity, including writes that occur within an instruction.
 Sound API behavior and playback still need testing on SmileBASIC 4.4.6; the
@@ -206,7 +209,8 @@ IRQ filtering/reload/acknowledge, manual PPUADDR clocks, dummy sprite fetches,
 DMA timing across scanlines, scrolling reload/wrap, and a complete converter
 CLI round trip for a 256 KiB PRG / 128 KiB CHR cartridge. Mapper 16 tests
 cover PRG/CHR banks, register aliases, all four mirroring modes and direct/latched
-IRQ behavior. Startup decoder tests execute the generated BASIC Base64/LZ
+IRQ behavior. EEPROM regressions cover acknowledgement, serial byte writes,
+reads, sequential address wrap and aborted transfers. Startup decoder tests execute the generated BASIC Base64/LZ
 routines against literal, repeated, overlapping and random data, including
 malformed stream rejection.
 

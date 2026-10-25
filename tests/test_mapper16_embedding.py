@@ -103,3 +103,42 @@ class Mapper16Tests(unittest.TestCase):
         self.write(0x600B,5);self.write(0x600C,0);self.write(0x600A,1)
         self.assertEqual(v['IRQCOUNT'],5)
         v['CC']=6;self.vm.call('ADVANCE');self.assertEqual(v['MIRQ'],1)
+
+class EEPROMTests(unittest.TestCase):
+    setUp=Mapper16Tests.setUp
+    write=Mapper16Tests.write
+    read=Mapper16Tests.read
+    def pin(self,clock,data=0,read=False):
+        self.write(0x800D,clock*32+data*64+int(read)*128)
+    def start(self):
+        for c,d in ((0,0),(0,1),(1,1),(1,0),(0,0)):self.pin(c,d)
+    def stop(self):
+        for c,d in ((0,0),(1,0),(1,1),(0,1)):self.pin(c,d)
+    def send(self,value):
+        for bit in range(8):
+            d=(value>>bit)&1
+            self.pin(0,d);self.pin(1,d);self.pin(0,d)
+        self.pin(0,1,True);self.pin(1,1,True)
+        self.assertEqual(self.read(0x6000)&16,0,'EEPROM must acknowledge')
+        self.pin(0,0)
+    def receive(self,ack=False):
+        value=0
+        for bit in range(8):
+            self.pin(1,1,True)
+            value|=((self.read(0x6000)>>4)&1)<<bit
+            self.pin(0,1,True)
+        self.pin(0,int(not ack));self.pin(1,int(not ack));self.pin(0,int(not ack))
+        return value
+    def test_serial_write_read_and_sequential_address(self):
+        self.start();self.send(126);self.send(0x96);self.send(0x3D);self.send(0xA5);self.stop()
+        self.assertEqual(self.vm.a['SRAM'][:1],[0xA5])
+        self.start();self.send(126|128)
+        self.assertEqual(self.receive(True),0x96)
+        self.assertEqual(self.receive(True),0x3D)
+        self.assertEqual(self.receive(),0xA5)
+        self.stop();self.assertEqual(self.read(0x6000),16)
+    def test_stop_aborts_partial_byte(self):
+        self.start();self.pin(1,1);self.pin(0,1);self.stop()
+        self.assertEqual(self.vm.a['SRAM'][0],0)
+        self.start();self.send(3);self.send(0x42);self.stop()
+        self.assertEqual(self.vm.a['SRAM'][3],0x42)
