@@ -21,7 +21,7 @@ BIN = {
 class BasicVM:
     def __init__(self, source):
         self.v=defaultdict(int)
-        self.a={name:[0]*size for name,size in [('RAM',2048),('SRAM',8192),('ROM',786960),('CHR',8192),('NT',4096),('PAL',32),('OAM',256),('OT',256),('MT',256),('CT',256),('PT',256),('BG',256),('PIX',256),('USED',256),('COL',64),('BANKREG',8),('PRGBANK',4),('CHRBANK',8),('SPR12',8)]}
+        self.a={name:[0]*size for name,size in [('RAM',2048),('SRAM',8192),('ROM',786960),('CHR',8192),('NT',4096),('PAL',32),('OAM',256),('OT',256),('MT',256),('CT',256),('PT',256),('BG',256),('PIX',256),('USED',256),('COL',64),('BANKREG',8),('PRGBANK',4),('CHRBANK',8),('SPR12',8),('APREG',24),('APLEN',4),('APENV',4),('APDIV',4),('APSTART',4),('APSW',2),('APLTABLE',32)]}
         self.lines=[]; self.labels={}; self.block_end={}; self.block_else={}
         stack=[]
         for raw in source.splitlines():

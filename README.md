@@ -2,7 +2,7 @@
 
 An experimental NES emulator written in SmileBASIC 4, targeting the Japanese
 4.4.6 demo on Switch 2. **It has not been run on that device or in the real
-SmileBASIC interpreter.** It is a silent NROM/MMC3 prototype; game compatibility
+SmileBASIC interpreter.** It is an NROM/MMC3 prototype with approximate four-channel sound; game compatibility
 and real-time speed are not established.
 
 `NES.bas` is the generated, self-contained program. It includes an original
@@ -102,8 +102,21 @@ Controller input is sampled once per emulated frame using SmileBASIC 4's
 
 ## Known limits
 
-There is no APU, audio, DMC DMA or APU frame IRQ. Reads of `$4015` return zero
-and sound-register writes are ignored. Cartridge RAM is not saved.
+Pulse (including duty and sweep), triangle and noise register writes now drive
+looping SmileBASIC waveforms. Length counters, envelopes, the triangle linear
+counter, `$4015` status/enables and an approximate NTSC frame sequencer/IRQ
+advance with CPU cycles, including OAM DMA stalls. Reading `$4015` clears the
+frame IRQ; `$4017` controls its inhibition and four/five-step mode.
+
+Audio pitch and volume are updated once per emulated frame using `WAVSETA`,
+`BEEP`, `BEEPPIT` and `BEEPVOL`. This is approximate synthesis: short sounds
+between updates can be lost, oscillator phase is not emulated, noise uses a
+short looping approximation (its mode bit is ignored), and mixing is linear.
+Frame-counter reset delay and IRQ edge races, precise sweep reload timing,
+DMC samples/DMA/IRQs and expansion audio are unsupported. The bundled visual
+diagnostic does not program the APU and remains silent. Cartridge RAM is not saved.
+Sound API behavior and playback still need testing on SmileBASIC 4.4.6; the
+online sound reference currently describes 4.4.9.
 
 MMC3 support targets standard boards with MMC3B/C zero-counter IRQ behavior.
 It does not implement MMC6 PRG RAM, MMC3A/NEC counter differences, the `$C001`
@@ -135,7 +148,8 @@ are not accurate. Headers with no PAL flag are treated as NTSC.
 Games may still fail or show timing/scrolling errors. A frame runs for 262×341
 approximate PPU dots at three dots per CPU cycle, then waits for one host VSYNC.
 There is no catch-up scheduler or performance claim. BASIC pixel composition, CPU execution and simulated fetch events may still be slow.
-The renderer fetches background data once per tile span and uploads each completed
+The renderer caches scanline scroll/pattern values, reads mapped nametable data
+directly once per tile span, and uploads each completed
 scanline with indexed `GLOAD` (240 graphics calls per frame). CPU and addressing
 mode dispatch use balanced branches, and instruction fetches have direct ROM/RAM
 paths. MMC3 timing skips redundant low-A12 background fetch events while retaining
@@ -184,6 +198,9 @@ suite. The required next acceptance test is to run the bundled diagnostic in
 SmileBASIC 4.4.6 on the target console.
 
 ## References
+
+- [SmileBASIC 4 sound API](https://sup4.smilebasic.com/en/doku.php?id=reference%3ASound)
+- [NESdev APU reference](https://www.nesdev.org/wiki/APU)
 
 - [Official SmileBASIC 4 specifications](https://www.petc4.smilebasic.com/basicspecification?lang=en)
 - [Official SmileBASIC 4 file reference (LOADV)](https://sup4.smilebasic.com/en/doku.php?id=reference%3Afiles)

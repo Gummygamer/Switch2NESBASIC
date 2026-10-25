@@ -15,13 +15,14 @@ class EfficiencyTests(unittest.TestCase):
         vm.a['COL'][:] = list(range(64))
         vm.a['CHRBANK'][:] = [i*1024 for i in range(8)]
         for fine in range(8):
-            for mirror in range(2):
+            for mirror in range(3):
                 for left in range(2):
                     scan = rng.randrange(32768)
                     mask = 8 + left*2 + rng.randrange(2)
                     ctrl = rng.randrange(256)
                     vm.v.update(SCANV=scan,FINE=fine,MIRROR=mirror,FOUR=0,
                                 MASK=mask,CTRL=ctrl,CHRS=0,LINE=10)
+                    vm.v['FOUR'] = int(mirror == 2)
                     expected = []
                     for x in range(256):
                         color = vm.a['PAL'][0]
@@ -30,7 +31,9 @@ class EfficiencyTests(unittest.TestCase):
                             nx = ((scan>>10)&1)^((wx//256)&1)
                             ny = (scan>>11)&1
                             tx,ty = (wx%256)//8,(scan>>5)&31
-                            pn = (nx+2*ny)&1 if mirror else (nx+2*ny)>>1
+                            pn = nx+2*ny
+                            if mirror != 2:
+                                pn = pn&1 if mirror else pn>>1
                             base = pn*1024
                             tile = vm.a['NT'][base+ty*32+tx]
                             attr = vm.a['NT'][base+960+(ty//4)*8+tx//4]
