@@ -108,15 +108,22 @@ counter, `$4015` status/enables and an approximate NTSC frame sequencer/IRQ
 advance with CPU cycles, including OAM DMA stalls. Reading `$4015` clears the
 frame IRQ; `$4017` controls its inhibition and four/five-step mode.
 
-Audio pitch and volume are updated once per emulated frame using `WAVSETA`,
-`BEEP`, `BEEPPIT` and `BEEPVOL`. This is approximate synthesis: short sounds
-between updates can be lost, oscillator phase is not emulated, noise uses a
-short looping approximation (its mode bit is ignored), and mixing is linear.
+Audio pitch and volume are presented once per emulated frame using `WAVSETA`,
+`BEEP`, `BEEPPIT` and `BEEPVOL`. Voices start at audible volume and keep playing
+across notes; unchanged pitch/volume commands are skipped. The 240 Hz envelope
+clock captures each channel's loudest state between presentations, so brief
+notes survive until the next host frame (with up to one frame of extension).
+Noise uses a full 32,767-step sequence or a 93-step short-mode sequence.
+This is approximate synthesis: sounds entirely between envelope/presentation
+samples can still be lost, oscillator phase is not emulated, and mixing is linear.
 Frame-counter reset delay and IRQ edge races, precise sweep reload timing,
 DMC samples/DMA/IRQs and expansion audio are unsupported. The bundled visual
 diagnostic does not program the APU and remains silent. Cartridge RAM is not saved.
 Sound API behavior and playback still need testing on SmileBASIC 4.4.6; the
-online sound reference currently describes 4.4.9.
+online sound reference currently describes 4.4.9. Run
+[`examples/audio_check.bas`](examples/audio_check.bas) by itself to check sustained
+custom waveforms, pitch changes, and noise muting on the console without a ROM.
+It should play a repeating melody with bass and percussion.
 
 MMC3 support targets standard boards with MMC3B/C zero-counter IRQ behavior.
 It does not implement MMC6 PRG RAM, MMC3A/NEC counter differences, the `$C001`

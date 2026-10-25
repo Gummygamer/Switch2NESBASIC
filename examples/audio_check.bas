@@ -1,0 +1,47 @@
+' Standalone SmileBASIC 4 sound check. No ROM or emulator required.
+' Expect a repeating melody, bass, and noise percussion. + stops.
+DIM W[32767],H[4],NOTES[8]
+SNDSTOP
+FOR V=0 TO 2
+ FOR J=0 TO 32766
+  W[J]=0
+  IF J<100 THEN
+   IF V<2 THEN
+    W[J]=-8192
+    IF J<25+25*V THEN W[J]=8192
+   ELSE
+    W[J]=8192-327.68*ABS(J-50)
+   ENDIF
+  ENDIF
+ NEXT
+ WAVSETA 224+V,127,127,127,127,W,69,0,99,44000,0,1
+NEXT
+SEED=1
+FOR J=0 TO 32766
+ W[J]=8192
+ IF (SEED AND 1)!=0 THEN W[J]=-8192
+ B=(SEED XOR (SEED >> 1)) AND 1
+ SEED=(SEED >> 1) OR (B << 14)
+NEXT
+WAVSETA 227,127,127,127,127,W,69,0,32766,44000,0,1
+FOR V=0 TO 3
+ H[V]=BEEP(224+V,0,48)
+NEXT
+DATA 0,400,700,1200,700,400,200,700
+FOR J=0 TO 7
+ READ NOTES[J]
+NEXT
+PRINT "Audio check: melody + bass + percussion"
+PRINT "Each note should sustain, with short noise hits."
+@LOOP
+FOR J=0 TO 7
+ BEEPPIT H[0],NOTES[J]
+ BEEPPIT H[1],NOTES[J]-1200
+ BEEPPIT H[2],NOTES[J]-2400
+ BEEPPIT H[3],-1200
+ BEEPVOL H[3],40
+ VSYNC 3
+ BEEPVOL H[3],0
+ VSYNC 12
+NEXT
+GOTO @LOOP

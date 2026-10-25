@@ -3,6 +3,7 @@
 This is a logic test aid, not a SmileBASIC compatibility emulator. In particular
 it cannot validate console graphics, controller APIs or the real BASIC parser.
 """
+import math
 import operator
 import re
 from collections import defaultdict
@@ -15,13 +16,15 @@ BIN = {
     '<=':(4,lambda a,b:int(a<=b)), '>=':(4,lambda a,b:int(a>=b)),
     '<<':(5,operator.lshift), '>>':(5,operator.rshift),
     '+':(6,operator.add), '-':(6,operator.sub),
-    '*':(7,operator.mul), 'DIV':(7,operator.floordiv), 'MOD':(7,operator.mod),
+    '/':(7,operator.truediv), '*':(7,operator.mul), 'DIV':(7,operator.floordiv), 'MOD':(7,operator.mod),
 }
 
 class BasicVM:
     def __init__(self, source):
         self.v=defaultdict(int)
-        self.a={name:[0]*size for name,size in [('RAM',2048),('SRAM',8192),('ROM',786960),('CHR',8192),('NT',4096),('PAL',32),('OAM',256),('OT',256),('MT',256),('CT',256),('PT',256),('BG',256),('PIX',256),('USED',256),('COL',64),('BANKREG',8),('PRGBANK',4),('CHRBANK',8),('SPR12',8),('APREG',24),('APLEN',4),('APENV',4),('APDIV',4),('APSTART',4),('APSW',2),('APLTABLE',32)]}
+        self.sound_events=[]
+        self.next_handle=0
+        self.a={name:[0]*size for name,size in [('RAM',2048),('SRAM',8192),('ROM',786960),('CHR',8192),('NT',4096),('PAL',32),('OAM',256),('OT',256),('MT',256),('CT',256),('PT',256),('BG',256),('PIX',256),('USED',256),('COL',64),('BANKREG',8),('PRGBANK',4),('CHRBANK',8),('SPR12',8),('APREG',24),('APLEN',4),('APENV',4),('APDIV',4),('APSTART',4),('APSW',2),('APLTABLE',32),('APNOISE',16),('APPEAK',4),('APPEAKINST',4),('APPEAKFREQ',4),('APHANDLE',4),('APVOICE',4),('APLASTVOL',4),('APLASTPITCH',4)]}
         self.lines=[]; self.labels={}; self.block_end={}; self.block_else={}
         stack=[]
         for raw in source.splitlines():
@@ -68,7 +71,15 @@ class BasicVM:
                 elif t.isdigit(): node=('num',int(t))
                 else:
                     node=('var',t)
-                    if pos<len(tokens) and tokens[pos]=='[':
+                    if pos<len(tokens) and tokens[pos]=='(':
+                        pos+=1; args=[]
+                        while tokens[pos]!=')':
+                            args.append(parse())
+                            if tokens[pos]!=',': break
+                            pos+=1
+                        assert tokens[pos]==')';pos+=1
+                        node=('func',t,args)
+                    elif pos<len(tokens) and tokens[pos]=='[':
                         pos+=1; index=parse(); assert tokens[pos]==']'; pos+=1
                         node=('arr',t,index)
                 while pos<len(tokens) and tokens[pos] in BIN and BIN[tokens[pos]][0]>=minp:
@@ -79,6 +90,12 @@ class BasicVM:
             self.cache[text]=node
         def ev(n):
             kind=n[0]
+            if kind=='func':
+                args=[ev(arg) for arg in n[2]]
+                if n[1]=='BEEP':
+                    handle=self.next_handle;self.next_handle+=1
+                    self.sound_events.append(('BEEP',handle,*args));return handle
+                return {'LOG':math.log,'MAX':max,'MIN':min}[n[1]](*args)
             if kind=='num': return n[1]
             if kind=='var': return self.v[n[1]]
             if kind=='arr': return self.a[n[1]][ev(n[2])]
@@ -95,6 +112,10 @@ class BasicVM:
         first,sep,rest=line.partition(':')
         if first=='RETURN': return True
         if first in ('CONTINUE','BREAK'): return first
+        if first.split(' ')[0] in ('BEEPSTOP','BEEPPIT','BEEPVOL'):
+            command,args=first.split(' ',1)
+            self.sound_events.append((command,*(self.expr(arg) for arg in args.split(','))))
+            return self.inline(rest) if sep else False
         if first.startswith('GLOAD '):
             x,y,w,h,indices,palette,mode=first[6:].split(',')
             x,y,w,h=map(self.expr,(x,y,w,h))

@@ -1,4 +1,5 @@
 """Exercise the generated BASIC APU through its CPU bus interface."""
+import math
 import unittest
 from pathlib import Path
 from basic_vm import BasicVM
@@ -7,6 +8,9 @@ class APUTests(unittest.TestCase):
     def setUp(self):
         self.vm=BasicVM((Path(__file__).resolve().parents[1]/'NES.bas').read_text())
         self.vm.a['APLTABLE'][:]=[10,254,20,2,40,4,80,6,160,8,60,10,14,12,26,14,12,16,24,18,48,20,96,22,192,24,72,26,16,28,32,30]
+        self.vm.a['APNOISE'][:]=[4,8,16,32,64,96,128,160,202,254,380,508,762,1016,2034,4068]
+        self.vm.a['APHANDLE'][:]=[-1]*4
+        self.vm.a['APVOICE'][:]=[-1]*4
     def write(self,addr,value):
         self.vm.v.update(AD=addr,WV=value);self.vm.call('WRITE')
     def status(self):
@@ -41,3 +45,48 @@ class APUTests(unittest.TestCase):
             self.write(0x4002+api*4,100);self.write(0x4001+api*4,0x89)
             self.vm.v['API']=api;self.vm.call('APTARGET')
             self.assertEqual(self.vm.v['APTARGET'],49+api)
+
+    def pulse(self):
+        self.write(0x4015,1)
+        self.write(0x4000,0x9f)  # 50% duty, constant volume
+        self.write(0x4002,253)
+        self.write(0x4003,0)
+
+    def test_voice_starts_audibly_and_sustains_without_retrigger(self):
+        self.pulse()
+        self.vm.call('SOUND')
+        event=self.vm.sound_events[0]
+        self.assertEqual(event[:3],('BEEP',0,226))
+        self.assertEqual(event[-1],60)
+        self.assertAlmostEqual(event[-2],1200*math.log2((1789773/(16*254))/440))
+        self.vm.call('SOUND')
+        self.assertEqual(len(self.vm.sound_events),1)
+        self.write(0x4015,0)
+        self.vm.call('SOUND')
+        self.assertEqual(self.vm.sound_events[-1],('BEEPVOL',0,0))
+        self.pulse();self.vm.call('SOUND')
+        self.assertEqual(self.vm.sound_events[-1],('BEEPVOL',0,60))
+
+    def test_short_note_survives_until_one_host_frame(self):
+        self.pulse()
+        self.advance(7457)
+        self.write(0x4015,0)
+        self.vm.call('SOUND')
+        self.assertEqual(self.vm.sound_events[0][-1],60)
+        self.vm.call('SOUND')
+        self.assertEqual(self.vm.sound_events[-1],('BEEPVOL',0,0))
+
+    def test_noise_mode_selects_distinct_loop(self):
+        self.write(0x4015,8)
+        self.write(0x400c,0x1f)
+        self.write(0x400f,0)
+        self.vm.call('SOUND')
+        self.assertEqual(self.vm.sound_events[0][2],229)
+        self.write(0x400e,128)
+        self.vm.call('SOUND')
+        self.assertEqual(self.vm.sound_events[-2],('BEEPSTOP',0))
+        self.assertEqual(self.vm.sound_events[-1][2],230)
+
+    def test_silent_channels_do_not_allocate_voices(self):
+        self.vm.call('SOUND')
+        self.assertEqual(self.vm.sound_events,[])
