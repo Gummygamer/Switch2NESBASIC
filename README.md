@@ -2,11 +2,11 @@
 
 An experimental NES emulator written in SmileBASIC 4, targeting the Japanese
 4.4.6 demo on Switch 2. **It has not been run on that device or in the real
-SmileBASIC interpreter.** It is an NROM/MMC3 prototype with approximate four-channel sound; game compatibility
+SmileBASIC interpreter.** It is an NROM/MMC3/Bandai FCG prototype with approximate four-channel sound; game compatibility
 and real-time speed are not established.
 
 `NES.bas` is the generated, self-contained program. It includes an original
-16 KiB test ROM encoded as hexadecimal DATA strings. No game ROM is needed
+16 KiB test ROM embedded as compressed Base64 DATA strings. No game ROM is needed
 for the first test. Enter the source in the SmileBASIC editor and run it. The
 expected result is a 256×240 field of alternating pixels whose color changes
 once per emulated frame. The image uses the top-left part of the default
@@ -18,12 +18,14 @@ whatever editor-entry method is available to you. Do not assume that the demo
 can import local PC files or save edited programs. The embedded DATA route
 requires neither a ROM file load nor a save operation while the emulator runs.
 
-## Use your ROM as hex text
+## Embed your ROM (compressed at startup)
 
-The input is the **entire iNES file, including its 16-byte header**, encoded as
-two hex digits per byte. It must begin `4E45531A`. The loader accepts upper- or
-lowercase hex and ASCII spaces, tabs, CR and LF. It rejects `0x` prefixes,
-addresses, separators, comments, invalid digits and incomplete bytes.
+The converter takes the **entire iNES file, including its 16-byte header**.
+Program and DATA output use LZ compression with Base64 transport. The loader
+fully decompresses the cartridge into the ordinary ROM array before cartridge
+initialization, reset-vector reads or CPU execution. Gameplay performs direct
+ROM reads with no decompression overhead. Older hexadecimal DATA blocks and
+TXT hex loading remain supported.
 
 Generate a complete program with a different embedded ROM:
 
@@ -33,7 +35,8 @@ python3 tools/rom_to_hex.py game.nes GAME.bas --format program
 
 Enter `GAME.bas` in place of `NES.bas`. This replaces the default test ROM;
 it does not add a second ROM. The converter requires Python 3 and has no
-third-party dependencies. The generated source is checked against SmileBASIC's
+third-party dependencies. Compression is lossless; size depends on the cartridge contents.
+The generated source is checked against SmileBASIC's
 1,048,576-character program limit. Larger cartridges may require TXT loading,
 even when the mapper can address their full ROM.
 
@@ -48,12 +51,14 @@ Replace `@ROMHEX` and everything below it with that output. Keep
 
 ```basic
 @ROMHEX
-DATA "4E45531A..."
+DATA "LZ64"
+DATA 16400
 DATA "..."
 DATA "END"
 ```
 
-The ellipses above illustrate omitted bytes; they are not valid input.
+The numeric DATA value is the original byte count. The ellipsis represents
+omitted Base64 text; use the converter to produce a valid block.
 
 For an environment where a TXT file is already available inside the
 SmileBASIC project:
@@ -61,6 +66,10 @@ SmileBASIC project:
 ```sh
 python3 tools/rom_to_hex.py game.nes ROMHEX.txt
 ```
+
+TXT output uses two hex digits per byte, beginning `4E45531A`. The loader
+accepts upper/lowercase hex and ASCII whitespace, and rejects separators,
+comments, invalid digits and incomplete bytes.
 
 Set `ROMFILE$="TXT:ROMHEX"`. This selects `LOADV` instead of embedded DATA.
 Creating `ROMHEX.txt` on a PC does not put it in the Switch project. If file
@@ -77,6 +86,12 @@ loading is unavailable in your demo session, use the embedded route.
   paired 2 KiB and individual 1 KiB banks, dynamic mirroring, PRG RAM protection,
   and MMC3B/C-style IRQ latch/reload/enable/acknowledge. Reset, NMI and IRQ vectors
   all read through the active PRG map. Rendering and PPUDATA use the CHR map.
+- iNES mapper 16 (Bandai FCG): power-of-two 16–256 KiB PRG and
+  0/8–256 KiB CHR; switchable 16 KiB PRG plus a fixed final bank, eight
+  1 KiB CHR banks, vertical/horizontal and both single-screen mirroring modes,
+  and a 16-bit CPU-cycle IRQ counter (including DMA stalls). Legacy iNES
+  headers are ambiguous: both register windows are accepted, with direct
+  counter writes at `$6000–$7FFF` and latched reloads at `$8000–$FFFF`.
 - Trainer initialization, 2 KiB mirrored CPU RAM and volatile 8 KiB cartridge RAM.
   Other mappers, NES 2.0, PAL-marked headers, VS/PlayChoice, oversized PRG RAM,
   unsupported bank sizes and unexpected file lengths are rejected.
@@ -118,7 +133,10 @@ This is approximate synthesis: sounds entirely between envelope/presentation
 samples can still be lost, oscillator phase is not emulated, and mixing is linear.
 Frame-counter reset delay and IRQ edge races, precise sweep reload timing,
 DMC samples/DMA/IRQs and expansion audio are unsupported. The bundled visual
-diagnostic does not program the APU and remains silent. Cartridge RAM is not saved.
+diagnostic does not program the APU and remains silent. Cartridge RAM is not saved. Mapper 16 EEPROM/I²C save hardware is not
+implemented; reads expose an idle-high serial bit. Mapper 153/157/159 and
+NES 2.0 submapper selection remain unsupported. Mapper 16 IRQ timing has
+instruction-level granularity, including writes that occur within an instruction.
 Sound API behavior and playback still need testing on SmileBASIC 4.4.6; the
 online sound reference currently describes 4.4.9. Run
 [`examples/audio_check.bas`](examples/audio_check.bas) by itself to check sustained
@@ -186,7 +204,11 @@ regressions also cover both PRG/CHR modes, register aliases, ROM/RAM banks,
 mirroring overrides, RAM protection, mapped vectors and interrupt priority,
 IRQ filtering/reload/acknowledge, manual PPUADDR clocks, dummy sprite fetches,
 DMA timing across scanlines, scrolling reload/wrap, and a complete converter
-CLI round trip for a 256 KiB PRG / 128 KiB CHR cartridge.
+CLI round trip for a 256 KiB PRG / 128 KiB CHR cartridge. Mapper 16 tests
+cover PRG/CHR banks, register aliases, all four mirroring modes and direct/latched
+IRQ behavior. Startup decoder tests execute the generated BASIC Base64/LZ
+routines against literal, repeated, overlapping and random data, including
+malformed stream rejection.
 
 For an optional local ROM smoke run through the same evaluator:
 
@@ -214,6 +236,7 @@ SmileBASIC 4.4.6 on the target console.
 - [Official SmileBASIC 4 controller reference](https://sup4.smilebasic.com/en/doku.php?id=reference%3AVarious_Inputs)
 - [NESdev PPU programmer reference](https://www.nesdev.org/wiki/PPU_programmer_reference)
 - [NESdev MMC3 register and IRQ reference](https://www.nesdev.org/wiki/MMC3)
+- [NESdev Bandai FCG / mapper 16 reference](https://www.nesdev.org/wiki/INES_Mapper_016)
 - [NESdev unofficial opcode reference](https://www.nesdev.org/wiki/CPU_unofficial_opcodes)
 
 The diagnostic ROM and emulator code are original project code. The distributed diagnostic contains no commercial ROM data. User-generated

@@ -96,8 +96,8 @@ def build():
     core = core.replace("' OPCODE_DISPATCH", dispatch).replace("' MODE_DISPATCH", modes)
     core = core.replace("' OPCODE_DATA", '\n'.join(out))
     from make_diagnostic import diagnostic
-    from rom_to_hex import encode
-    core = core.split('\n@ROMHEX\n')[0] + '\n' + encode(diagnostic(), 'data')
+    from rom_to_hex import embedded
+    core = core.split('\n@ROMHEX\n')[0] + '\n' + embedded(diagnostic())
     (ROOT/'NES.bas').write_text(core)
 
 if __name__ == '__main__':

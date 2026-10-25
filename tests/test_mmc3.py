@@ -10,6 +10,7 @@ sys.path.insert(0,str(ROOT/'tools'))
 from build import table,OPS,MODES
 from rom_to_hex import validate,encode,decode,program,MAX_ROM,MAX_PROGRAM_CHARS
 from basic_vm import BasicVM
+from test_mapper16_embedding import decode_embedded
 
 
 def cartridge(prg=8,chr=16,flags=0,trainer=False):
@@ -192,7 +193,10 @@ class MMC3Tests(unittest.TestCase):
         self.assertEqual(self.vm.a['SRAM'][4096:4608],list(range(256))*2)
         self.assertEqual(decode(encode(maximum)),maximum)
         self.assertLess(len(program(cartridge(prg=16,chr=16))),MAX_PROGRAM_CHARS)
-        with self.assertRaisesRegex(ValueError,'character limit'): program(maximum)
+        self.assertLess(len(program(maximum)),MAX_PROGRAM_CHARS)
+        import random
+        noisy=maximum[:16]+random.Random(4).randbytes(len(maximum)-16)
+        with self.assertRaisesRegex(ValueError,'character limit'): program(noisy)
         for index,value in [(4,1),(4,3),(4,33),(5,3),(5,33),(8,2),(6,0x20)]:
             bad=bytearray(cartridge());bad[index]=value
             with self.subTest(index=index,value=value):
@@ -206,8 +210,7 @@ class MMC3Tests(unittest.TestCase):
             result=subprocess.run([sys.executable,str(ROOT/'tools/rom_to_hex.py'),str(rom),str(output),'--format','program'],capture_output=True,text=True)
             self.assertEqual(result.returncode,0,result.stderr)
             source=output.read_text();embedded=source.split('\n@ROMHEX\n')[1]
-            rows=[line[6:-1] for line in embedded.splitlines() if line.startswith('DATA "') and line!='DATA "END"']
-            self.assertEqual(bytes.fromhex(''.join(rows)),data)
+            self.assertEqual(decode_embedded('@ROMHEX\n'+embedded),data)
             self.assertIn('@MAPPERWRITE',source)
 
 if __name__=='__main__': unittest.main()

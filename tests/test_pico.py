@@ -26,7 +26,7 @@ class PicoTests(unittest.TestCase):
     def test_fast_timing_and_editor_reports(self):
         config=json.loads((ROOT/'pico/settings.json').read_text())
         self.assertEqual(config['key_delay'],0.005)
-        self.assertEqual(config['mode'],'nes')
+        config['mode']='nes'  # Exercise sending independently of the local arming setting.
         sleeps=[];states=[]
         files={'/settings.json':json.dumps(config),'/session.json':'{"active":true}','/nes.bas':'PRINT "A#"\n  AA\n'}
         def fake_open(name,*args,**kwargs): return io.StringIO(files[name])
@@ -60,7 +60,9 @@ class PicoTests(unittest.TestCase):
                 self.assertLess(len(line),1024)
                 self.assertTrue(all(c in mapping for c in line))
                 count+=1;chars+=len(line)
-        self.assertGreater(chars,800000);self.assertGreater(count,10000)
+        expected=(ROOT/'NES.bas').read_text().splitlines()*16
+        self.assertEqual(chars,sum(map(len,expected)))
+        self.assertEqual(count,len(expected))
     def test_boot_consumes_arming_once(self):
         import tempfile
         with tempfile.TemporaryDirectory() as tmp:
