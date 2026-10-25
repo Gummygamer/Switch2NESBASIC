@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+
+# Local cartridge inputs and ROM-embedded output
+*.nes
+*.NES
+*.zip
+GAME.bas
+
+# Device snapshots and local deployment metadata
+pico/backups/
+pico/deployment.json
+pico/status.json
+pico/session.json
